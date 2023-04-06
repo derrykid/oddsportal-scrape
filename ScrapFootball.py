@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -24,16 +26,22 @@ def get_link(a):
         return False
 
 
-def get_links(link):
+def get_links(link, page):
     driver.get(link)
 
     i = 0
     while i < 5:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(0.5)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         i = i + 1
 
+    driver.execute_script("window.scrollTo(0, -document.body.scrollHeight);")
+    time.sleep(0.3)
+
+
     links = []
+    links.append(f"page:{page}")
     for i in range(1, 100):
         target1 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div/div/a'.format(i)
         target2 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div[2]/div/a'.format(i)
@@ -60,12 +68,17 @@ def scrape_page_typeA(page, sport, country, tournament, SEASON):
                                                                                  page)
     DATA = []
 
-    content = get_links(link)
-    if content != None:
-        DATA = DATA + content
+    content1 = get_links(link, page)
+    if content1 != None:
+        DATA.extend(content1)
+
+    content2 = get_links(link, page)
+    if content2 != None:
+        DATA.extend(content2)
 
     print(DATA)
-    return (DATA)
+    link_set = set(DATA)
+    return link_set
 
 
 def scrape_current_tournament_typeA(sport, tournament, country, SEASON, max_page):
@@ -107,8 +120,8 @@ def scrape_oddsportal_historical(sport, country, league, start_season, nseasons,
 def get_odds(link):
     driver = webdriver.Chrome(executable_path=DRIVER_LOCATION, options=options)
     driver.get(link)
-    print('We wait 4 seconds')
-    time.sleep(4)
+    print('We wait 2 seconds')
+    time.sleep(2)
 
     page_odds = []
     try:
@@ -158,9 +171,21 @@ def get_links_in_file(file_name) -> list:
 
     return lines
 
-scrape_oddsportal_historical(
-    sport='football', country='england',
-    league='premier-league',
-    start_season='2009-2022', nseasons=13,
-    current_season='no',
-    max_page=9)
+
+full_odds = []
+for season in range(2007, 2008):
+    season_links = get_links_in_file(f"football-{season}-{season+1}.csv")
+
+    for link in season_links:
+        odds = get_odds(link)
+        full_odds.extend(odds)
+
+    df = pd.DataFrame(full_odds)
+    df.to_csv(f'football-odds-{season}-{season+1}.csv', index=False, encoding='utf-8')
+
+# scrape_oddsportal_historical(
+#     sport='football', country='england',
+#     league='premier-league',
+#     start_season='2008-2022', nseasons=14,
+#     current_season='no',
+#     max_page=9)
