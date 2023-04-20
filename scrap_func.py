@@ -120,7 +120,7 @@ def scrape_tournament_game_links_save_as_csv(sport, tournament, country, season,
         except:
             pass
 
-        driver = webdriver.Chrome(executable_path=DRIVER_LOCATION, options=options)
+        driver = webdriver.Firefox(executable_path=DRIVER_LOCATION, options=options)
         data = collect_hyperlinks_from_result_page(page, sport, country, tournament, season)
 
         data_all = data_all + [y for y in data if y is not None]
