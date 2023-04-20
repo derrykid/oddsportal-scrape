@@ -9,12 +9,11 @@ import time
 import re
 
 global DRIVER_LOCATION
-DRIVER_LOCATION = "/home/derry/Programming/Backend/Python/note/selenium/chromedriver"
+DRIVER_LOCATION = "/home/derry/Downloads/geckodriver"
 
 global options
 options = Options()
-options.add_argument("start-maximized")
-options.binary_location = r'/usr/bin/vivaldi-stable'
+options.binary_location = r'/usr/bin/firefox'
 
 
 def extract_link_by_xpath(xpath):
