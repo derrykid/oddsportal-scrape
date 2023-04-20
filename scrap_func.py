@@ -17,16 +17,19 @@ options.add_argument("start-maximized")
 options.binary_location = r'/usr/bin/vivaldi-stable'
 
 
-def extract_the_dom_page_link(a):
+def extract_link_by_xpath(xpath):
+    """
+    Extract the links by the xpath
+    """
     try:
-        link = driver.find_element(By.XPATH, a).get_attribute('href')
+        link = driver.find_element(By.XPATH, xpath).get_attribute('href')
         print(link)
         return link
     except:
         return False
 
 
-def collect_hyperlinks_logic(page, sport, country, tournament, SEASON):
+def collect_hyperlinks_from_result_page(page, sport, country, tournament, SEASON):
     """
     collect the page links of historical match in the season. return the page links to each game
     """
@@ -82,11 +85,11 @@ def get_hyperlinks_on_historical_result_as_list(link, page):
     for i in range(1, 100):
         # There are 2 forms, I found that the first record in a day, the html path might be like 'target1'
         # the rest html path is like 'target2'
-        target1 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div/div/a'.format(i)
-        target2 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div[2]/div/a'.format(i)
+        xpath1 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div/div/a'.format(i)
+        xpath2 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div[2]/div/a'.format(i)
 
-        link_a = extract_the_dom_page_link(target1)
-        link_b = extract_the_dom_page_link(target2)
+        link_a = extract_link_by_xpath(xpath1)
+        link_b = extract_link_by_xpath(xpath2)
 
         # it's either link_a exists or link_b
         if link_a or link_b:
@@ -99,9 +102,18 @@ def get_hyperlinks_on_historical_result_as_list(link, page):
     return links
 
 
-def scrape_current_tournament_and_save_as_csv(sport, tournament, country, SEASON, max_page):
+def scrape_tournament_game_links_save_as_csv(sport, tournament, country, season, max_page):
+    """
+    Scrape the webpage by
+    1. sport
+    2. tournament: e.g. Premier league, league one, league two
+    3. country: England, etc
+    4. season: 2011-2012, 2015-2019
+    5. max-page: x, means only scrape x pages
+    """
+
     global driver
-    DATA_ALL = []
+    data_all = []
     for page in range(1, max_page):
         print('We start to scrape the page n°{}'.format(page))
         try:
@@ -110,16 +122,19 @@ def scrape_current_tournament_and_save_as_csv(sport, tournament, country, SEASON
             pass
 
         driver = webdriver.Chrome(executable_path=DRIVER_LOCATION, options=options)
-        data = collect_hyperlinks_logic(page, sport, country, tournament, SEASON)
+        data = collect_hyperlinks_from_result_page(page, sport, country, tournament, season)
 
-        DATA_ALL = DATA_ALL + [y for y in data if y != None]
+        data_all = data_all + [y for y in data if y is not None]
         driver.close()
 
-    data_df = pd.DataFrame(DATA_ALL)
-    data_df.to_csv(f'football-{SEASON}.csv', index=False, encoding='utf-8')
+    data_df = pd.DataFrame(data_all)
+    data_df.to_csv(f'{sport}-{season}.csv', index=False, encoding='utf-8')
 
 
-def scrape_oddsportal_historical(sport, country, league, start_season, nseasons, current_season, max_page):
+def scrape_sport_links_main(sport, country, league, start_season, nseasons, max_page):
+    """
+    Scrape by season. this function checks the start season and end season and scrape data
+    """
     # indicates whether Season is in format '2010-2011' or '2011' depends on the league)
     long_season = (len(start_season) > 6)
     Season = int(start_season[0:4])
@@ -128,8 +143,9 @@ def scrape_oddsportal_historical(sport, country, league, start_season, nseasons,
         if long_season:
             SEASON1 = '{}-{}'.format(Season, Season + 1)
         print('We start to collect season {}'.format(SEASON1))
-        scrape_current_tournament_and_save_as_csv(sport=sport, tournament=league, country=country, SEASON=SEASON1,
-                                                  max_page=max_page)
+        scrape_tournament_game_links_save_as_csv(sport=sport, tournament=league, country=country,
+                                                 season=SEASON1,
+                                                 max_page=max_page)
         print('We finished to collect season {} !'.format(SEASON1))
         Season += 1
 
@@ -183,16 +199,35 @@ def open_page_parse_html_return_odds_tuple(link):
     return odds_in_page
 
 
+def read_file_links_scrape_odds_save_as_file(sport, from_year, to_year):
+    full_odds = []
+    i = 0
+    for season in range(from_year, to_year):
+        games_link_all_season = read_hyperlinks_to_list(f"{sport}-{season}-{season + 1}.csv")
+
+        for link in games_link_all_season:
+            odds = open_page_parse_html_return_odds_tuple(link)
+            full_odds.extend(odds)
+            i = i + 1
+
+        df = pd.DataFrame(full_odds)
+        df.to_csv(f'{sport}-odds-{season}-{season + 1}.csv', index=False, encoding='utf-8')
+
+
 def read_hyperlinks_to_list(file_name) -> list:
     """
     In the csv file, there are the links of all games played in that season.
     These links are the hyperlinks to the game. The page has the odds of bookmakers
     """
-    with open(file_name) as file_in:
-        lines = []
-        for line in file_in:
-            if len(line) < 10:
-                continue
-            lines.append(line)
+    try:
+        with open(file_name) as file_in:
+            lines = []
+            for line in file_in:
+                if len(line) < 10:
+                    continue
+                lines.append(line)
+    except FileNotFoundError:
+        print(FileNotFoundError)
+        raise RuntimeError
 
     return lines
