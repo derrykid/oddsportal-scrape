@@ -17,7 +17,7 @@ options.add_argument("start-maximized")
 options.binary_location = r'/usr/bin/vivaldi-stable'
 
 
-def extract_the_dom_page_link(a):
+def get_link(a):
     try:
         link = driver.find_element(By.XPATH, a).get_attribute('href')
         print(link)
@@ -26,46 +26,9 @@ def extract_the_dom_page_link(a):
         return False
 
 
-def collect_hyperlinks_logic(page, sport, country, tournament, SEASON):
-    """
-    collect the page links of historical match in the season. return the page links to each game
-    """
-
-    # the url to the result pages
-    if page == 1:
-        link = 'https://www.oddsportal.com/{}/{}/{}-{}/results/'.format(sport, country, tournament, SEASON)
-    else:
-        link = 'https://www.oddsportal.com/{}/{}/{}-{}/results/#/page/{}'.format(sport, country, tournament, SEASON,
-                                                                                 page)
-
-    # get hyperlinks
-    game_hyperlinks = []
-    content1 = get_hyperlinks_on_historical_result_as_list(link, page)
-    if content1 != None:
-        game_hyperlinks.extend(content1)
-
-    content2 = get_hyperlinks_on_historical_result_as_list(link, page)
-    if content2 != None:
-        game_hyperlinks.extend(content2)
-
-    print(game_hyperlinks)
-
-    # use set to remove the duplicates
-    link_set = set(game_hyperlinks)
-    return link_set
-
-
-def get_hyperlinks_on_historical_result_as_list(link, page):
-    """
-    Get the hyperlinks to every match page and return it as a list
-    """
-
-    # open the browser
+def get_links(link, page):
     driver.get(link)
 
-    # it's necessary to scroll the webpage because the html document at oddsportal will not display unless
-    # the window is scrolling down
-    # this mimics the human behaviours
     i = 0
     while i < 5:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -76,20 +39,18 @@ def get_hyperlinks_on_historical_result_as_list(link, page):
     driver.execute_script("window.scrollTo(0, -document.body.scrollHeight);")
     time.sleep(0.3)
 
+
     links = []
-    # appends the 'mark' in the data, so we can know how many links are collected in each page
     links.append(f"page:{page}")
     for i in range(1, 100):
-        # There are 2 forms, I found that the first record in a day, the html path might be like 'target1'
-        # the rest html path is like 'target2'
         target1 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div/div/a'.format(i)
         target2 = '/html/body/div[1]/div/div[1]/div/main/div[2]/div[5]/div[1]/div[{}]/div[2]/div/a'.format(i)
 
-        link_a = extract_the_dom_page_link(target1)
-        link_b = extract_the_dom_page_link(target2)
+        link_a = get_link(target1)
+        link_b = get_link(target2)
 
-        # it's either link_a exists or link_b
         if link_a or link_b:
+            # a not none
             if link_a:
                 links.append(link_a)
                 continue
@@ -99,8 +60,30 @@ def get_hyperlinks_on_historical_result_as_list(link, page):
     return links
 
 
-def scrape_current_tournament_and_save_as_csv(sport, tournament, country, SEASON, max_page):
+def scrape_page_typeA(page, sport, country, tournament, SEASON):
+    if page == 1:
+        link = 'https://www.oddsportal.com/{}/{}/{}-{}/results/'.format(sport, country, tournament, SEASON)
+    else:
+        link = 'https://www.oddsportal.com/{}/{}/{}-{}/results/#/page/{}'.format(sport, country, tournament, SEASON,
+                                                                                 page)
+    DATA = []
+
+    content1 = get_links(link, page)
+    if content1 != None:
+        DATA.extend(content1)
+
+    content2 = get_links(link, page)
+    if content2 != None:
+        DATA.extend(content2)
+
+    print(DATA)
+    link_set = set(DATA)
+    return link_set
+
+
+def scrape_current_tournament_typeA(sport, tournament, country, SEASON, max_page):
     global driver
+    ############### NOW WE SEEK TO SCRAPE THE ODDS AND MATCH INFO################################
     DATA_ALL = []
     for page in range(1, max_page):
         print('We start to scrape the page n°{}'.format(page))
@@ -110,7 +93,7 @@ def scrape_current_tournament_and_save_as_csv(sport, tournament, country, SEASON
             pass
 
         driver = webdriver.Chrome(executable_path=DRIVER_LOCATION, options=options)
-        data = collect_hyperlinks_logic(page, sport, country, tournament, SEASON)
+        data = scrape_page_typeA(page, sport, country, tournament, SEASON)
 
         DATA_ALL = DATA_ALL + [y for y in data if y != None]
         driver.close()
@@ -128,28 +111,23 @@ def scrape_oddsportal_historical(sport, country, league, start_season, nseasons,
         if long_season:
             SEASON1 = '{}-{}'.format(Season, Season + 1)
         print('We start to collect season {}'.format(SEASON1))
-        scrape_current_tournament_and_save_as_csv(sport=sport, tournament=league, country=country, SEASON=SEASON1,
-                                                  max_page=max_page)
+        scrape_current_tournament_typeA(sport=sport, tournament=league, country=country, SEASON=SEASON1,
+                                        max_page=max_page)
         print('We finished to collect season {} !'.format(SEASON1))
         Season += 1
 
 
-def open_page_parse_html_return_odds_tuple(link):
-    """
-    This function opens the match result page, parses the document, and returns the tuple of
-    (bookmaker, odds, time, game, team, etc)
-    """
-    # power up the browser
+def get_odds(link):
     driver = webdriver.Chrome(executable_path=DRIVER_LOCATION, options=options)
     driver.get(link)
     print('We wait 2 seconds')
     time.sleep(2)
 
-    odds_in_page = []
+    page_odds = []
     try:
         # Now we collect all bookmaker
-        html_div_start_num = 2
-        for j in range(html_div_start_num, 30):  # only first 10 bookmakers displayed
+        startbooker = 2
+        for j in range(startbooker, 30):  # only first 10 bookmakers displayed
             # bookmaker xpath
             bookmaker = driver.find_element(By.XPATH,
                                             '/html/body/div[1]/div/div[1]/div/main/div[2]/div[4]/div[1]/div/div[{}]/div[1]/a[2]/p'.format(
@@ -173,21 +151,17 @@ def open_page_parse_html_return_odds_tuple(link):
             date = driver.find_element(By.XPATH,
                                        '/html/body/div[1]/div/div[1]/div/main/div[2]/div[3]/div[2]/div[1]/div[2]').text  # Date and time
 
-            odds_in_page.append((match, bookmaker, home, draw, away, date, final_score))
+            page_odds.append((match, bookmaker, home, draw, away, date, final_score))
     except:
         pass
     driver.close()
     driver.quit()
 
-    print(odds_in_page)
-    return odds_in_page
+    print(page_odds)
+    return page_odds
 
 
-def read_hyperlinks_to_list(file_name) -> list:
-    """
-    In the csv file, there are the links of all games played in that season.
-    These links are the hyperlinks to the game. The page has the odds of bookmakers
-    """
+def get_links_in_file(file_name) -> list:
     with open(file_name) as file_in:
         lines = []
         for line in file_in:
@@ -196,3 +170,28 @@ def read_hyperlinks_to_list(file_name) -> list:
             lines.append(line)
 
     return lines
+
+
+full_odds = []
+i = 0
+for season in range(2007, 2008):
+    season_links = get_links_in_file(f"football-{season}-{season+1}.csv")
+
+
+    for link in season_links:
+
+        if i == 3:
+            break;
+        odds = get_odds(link)
+        full_odds.extend(odds)
+        i = i + 1
+
+    df = pd.DataFrame(full_odds)
+    df.to_csv(f'football-odds-{season}-{season+1}.csv', index=False, encoding='utf-8')
+
+# scrape_oddsportal_historical(
+#     sport='football', country='england',
+#     league='premier-league',
+#     start_season='2008-2022', nseasons=14,
+#     current_season='no',
+#     max_page=9)
