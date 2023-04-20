@@ -14,7 +14,7 @@ DRIVER_LOCATION = "/home/derry/Downloads/geckodriver"
 
 global options
 options = FirefoxOptions()
-options.add_argument('--headless')
+# options.add_argument('--headless')
 
 
 def extract_link_by_xpath(xpath):
