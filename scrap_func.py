@@ -6,14 +6,15 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 import time
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 import re
 
 global DRIVER_LOCATION
 DRIVER_LOCATION = "/home/derry/Downloads/geckodriver"
 
 global options
-options = Options()
-options.binary_location = r'/usr/bin/firefox'
+options = FirefoxOptions()
+options.add_argument('--headless')
 
 
 def extract_link_by_xpath(xpath):
