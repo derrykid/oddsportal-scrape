@@ -156,7 +156,7 @@ def open_page_parse_html_return_odds_tuple(link):
     (bookmaker, odds, time, game, team, etc)
     """
     # power up the browser
-    driver = webdriver.Chrome(executable_path=DRIVER_LOCATION, options=options)
+    driver = webdriver.Firefox(executable_path=DRIVER_LOCATION, options=options)
     driver.get(link)
     print('We wait 2 seconds')
     time.sleep(2)
